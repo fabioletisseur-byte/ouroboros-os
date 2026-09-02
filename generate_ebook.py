@@ -1,0 +1,39 @@
+name: Ouroboros Publisher OS — Pipeline Akhano
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 19 * * *'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupération du code source
+        uses: actions/checkout@v4
+
+      - name: Configuration de Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Installation des dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests ebooklib
+
+      - name: Exécution d'Ouroboros Publisher OS
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python generate_ebook.py
+
+      - name: Sauvegarde des fichiers générés
+        uses: actions/upload-artifact@v4
+        with:
+          name: Akhano-Release-Pack
+          path: |
+            Akhano_Tome1_BestSeller.epub
+            KIT_MARKETING.md
