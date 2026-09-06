@@ -174,3 +174,47 @@ with open("KIT_MARKETING.md", "w", encoding="utf-8") as f:
     f.write("Découvrez le premier tome captivant d'AKHANO par FABIO LAROUS (Le Tisseur). Une plongée magistrale au cœur d'un univers où la magie se tisse dans la chair et le sang.\n")
 
 print(" Génération terminée avec succès ! EPUB et Kit Marketing créés.")
+import { useEffect, useState } from 'react';
+
+function useOllama(prompt: string): string {
+  // Votre code pour utiliser Ollama ici
+
+  // Filtre et nettoyage de la réponse
+  const [cleanedResponse, setCleanedResponse] = useState<string>('');
+  useEffect(() => {
+    const nettoyerReponseOllama = (texte: string): string => {
+      const phrasesIndesirables = [
+        "Cette réponse est",
+        "Ce texte est",
+        "Ce passage est",
+        "Cette proposition",
+        "paramètres de ton et de style",
+        "vous avez spécifiés",
+        "respecte les paramètres",
+        "modèle",
+        "IA",
+        "assistant",
+      ];
+
+      let resultat = texte;
+
+      for (const motif of phrasesIndesirables) {
+        const idx = resultat.toLowerCase().indexOf(motif.toLowerCase());
+        if (idx !== -1) {
+          resultat = resultat.slice(0, idx).trim();
+          break;
+        }
+      }
+
+      // Enlever les sauts de ligne en trop à la fin
+      return resultat.replace(/\n+$/g, '');
+    };
+
+    setCleanedResponse(nettoyerReponseOllama(response));
+  }, [prompt]);
+
+  return cleanedResponse;
+}
+
+// Votre code pour utiliser useOllama ici
+
