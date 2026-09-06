@@ -4,7 +4,7 @@ import requests
 from ebooklib import epub
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "llama3.2:3b"
+MODEL = "qwen2.5:3b"
 
 TITLE = "AKHANO — Tome 1 : Le Tisseur du Destin"
 AUTHOR = "FABIO LAROUS (Le Tisseur)"
