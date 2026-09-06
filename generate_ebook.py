@@ -1,220 +1,217 @@
-import os
-import google.generativeai as genai
+from pathlib import Path
+from html import escape
+import requests
 from ebooklib import epub
 
-api_key = os.environ.get("GEMINI_API_KEY")
-if not api_key:
-    raise ValueError("Erreur : La clé GEMINI_API_KEY est absente des secrets GitHub.")
+OLLAMA_URL = "http://localhost:11434/api/generate"
+MODEL = "llama3.2:3b"
 
-print("Démarrage du système Ouroboros Publisher OS...")
+TITLE = "AKHANO — Tome 1 : Le Tisseur du Destin"
+AUTHOR = "FABIO LAROUS (Le Tisseur)"
 
-# Configuration du SDK Google Gemini
-genai.configure(api_key=api_key)
 
-# Détection dynamique du modèle actif sur le compte
-print("Recherche automatique du modèle Gemini disponible...")
-available_models = []
-try:
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            available_models.append(m.name)
-except Exception as e:
-    print(f"Avertissement lors de la liste des modèles : {e}")
+def generate_text(prompt: str) -> str:
+    response = requests.post(
+        OLLAMA_URL,
+        json={
+            "model": MODEL,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.8,
+                "num_ctx": 4096
+            }
+        },
+        timeout=900
+    )
+    response.raise_for_status()
+    data = response.json()
+    return data.get("response", "").strip()
 
-selected_model_name = None
-preferred_order = [
-    "models/gemini-2.5-flash",
-    "models/gemini-2.0-flash",
-    "models/gemini-1.5-flash-002",
-    "models/gemini-1.5-flash-001",
-    "models/gemini-1.5-flash",
-    "models/gemini-1.5-pro",
-    "models/gemini-flash-latest"
-]
 
-for pref in preferred_order:
-    if pref in available_models:
-        selected_model_name = pref
-        break
+def paragraphs_to_html(text: str) -> str:
+    paragraphs = []
 
-if not selected_model_name and available_models:
-    selected_model_name = available_models[0]
+    for paragraph in text.split("\n"):
+        paragraph = paragraph.strip()
+        if paragraph:
+            paragraphs.append(f"<p>{escape(paragraph)}</p>")
 
-if not selected_model_name:
-    selected_model_name = "gemini-2.0-flash"
+    return "\n".join(paragraphs)
 
-print(f" Modèle sélectionné avec succès : {selected_model_name}")
-model = genai.GenerativeModel(selected_model_name)
 
-# Génération du contenu textuel Best-Seller
-prompt_text = (
-    "Tu es un auteur et éditeur de best-sellers. "
-    "Rédige le contenu captivant du Tome 1 de la saga Afro-Fantasy 'AKHANO — Le Tisseur du Destin'. "
-    "Auteur : FABIO LAROUS (Le Tisseur). "
-    "Ambiance : Dark Fantasy, scarifications cyan, fils d'or bioluminescents, sensualité mystique (18+), héritage afro-caraïbéen. "
-    "Style immersif, riche et visuel digne d'un grand roman best-seller."
-)
+def create_epub(generated_text: str) -> None:
+    book = epub.EpubBook()
 
-response = model.generate_content(prompt_text)
-generated_text = response.text if response.text else "Contenu en cours de tissage..."
+    book.set_identifier("akhano-tome-1")
+    book.set_title(TITLE)
+    book.set_language("fr")
+    book.add_author(AUTHOR)
 
-# Construction de l'EPUB Best-Seller Professionnel
-book = epub.EpubBook()
-book.set_identifier("akhano-tome-1-bestseller")
-book.set_title("AKHANO — Tome 1 : Le Tisseur du Destin")
-book.set_language("fr")
-book.add_author("FABIO LAROUS (Le Tisseur)")
+    style = """
+    body {
+        font-family: Georgia, serif;
+        line-height: 1.6;
+        margin: 5%;
+        color: #1a1a1a;
+    }
 
-# Styles CSS professionnels
-style = '''
-@page { margin: 5% 5%; }
-body { font-family: 'Georgia', serif; line-height: 1.8; color: #1a1a1a; margin: 0; padding: 0; }
-h1 { font-family: 'Cinzel', 'Times New Roman', serif; text-align: center; font-size: 2em; margin-top: 2em; margin-bottom: 1em; text-transform: uppercase; letter-spacing: 2px; color: #111; }
-h2 { font-family: 'Georgia', serif; text-align: center; font-size: 1.4em; margin-top: 1.5em; color: #333; font-style: italic; }
-p { text-indent: 1.5em; margin-bottom: 0.5em; text-align: justify; }
-.no-indent { text-indent: 0; }
-.center { text-align: center; text-indent: 0; }
-.title-page { text-align: center; margin-top: 25%; }
-.author-name { font-size: 1.5em; font-weight: bold; letter-spacing: 3px; margin-top: 2em; text-transform: uppercase; }
-.copyright-page { font-size: 0.85em; text-align: center; margin-top: 30%; color: #555; text-indent: 0; }
-.dedication { font-style: italic; text-align: center; margin-top: 35%; text-indent: 0; }
-.back-cover { padding: 8%; background-color: #f9f9f9; border-left: 4px solid #111; font-style: italic; }
-'''
+    h1 {
+        text-align: center;
+        margin-top: 2em;
+        margin-bottom: 1em;
+    }
 
-nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
-book.add_item(nav_css)
+    h2 {
+        text-align: center;
+        font-style: italic;
+    }
 
-# 1. Page de titre
-p_title = epub.EpubHtml(title="Titre", file_name="title.xhtml", lang="fr")
-p_title.content = '''
-<div class="title-page">
-    <h1>AKHANO</h1>
-    <h2>Tome 1 : Le Tisseur du Destin</h2>
-    <br/><br/>
-    <p class="author-name">FABIO LAROUS<br/><small>(Le Tisseur)</small></p>
-</div>
-'''
-p_title.add_item(nav_css)
+    p {
+        text-align: justify;
+        text-indent: 1.4em;
+        margin-bottom: 0.7em;
+    }
 
-# 2. Copyright
-p_copyright = epub.EpubHtml(title="Copyright", file_name="copyright.xhtml", lang="fr")
-p_copyright.content = '''
-<div class="copyright-page">
-    <p class="no-indent"><strong>AKHANO — Tome 1 : Le Tisseur du Destin</strong></p>
-    <p class="no-indent">© 2026 FABIO LAROUS (Le Tisseur). Tous droits réservés.</p>
-    <p class="no-indent">Aucune partie de ce livre ne peut être reproduite ou transmise sans l'autorisation écrite de l'auteur.</p>
-    <p class="no-indent">Édition Ouroboros Publisher OS</p>
-</div>
-'''
-p_copyright.add_item(nav_css)
+    .center {
+        text-align: center;
+        text-indent: 0;
+    }
+    """
 
-# 3. Dédicace
-p_dedication = epub.EpubHtml(title="Dédicace", file_name="dedication.xhtml", lang="fr")
-p_dedication.content = '''
-<div class="dedication">
-    <p class="no-indent"><em>À toutes les âmes qui tissent la lumière à travers les ombres du destin.</em></p>
-</div>
-'''
-p_dedication.add_item(nav_css)
+    css = epub.EpubItem(
+        uid="style",
+        file_name="style/style.css",
+        media_type="text/css",
+        content=style.encode("utf-8")
+    )
 
-# 4. Remerciements
-p_thanks = epub.EpubHtml(title="Remerciements", file_name="remerciements.xhtml", lang="fr")
-p_thanks.content = '''
-<h1>Remerciements</h1>
-<p>Mes remerciements les plus profonds s'adressent à mes lecteurs passionnés, à mes proches et à tous ceux qui soutiennent l'univers de la saga AKHANO. Ce livre existe grâce à votre énergie et à votre foi inébranlable dans la puissance du récit.</p>
-'''
-p_thanks.add_item(nav_css)
+    book.add_item(css)
 
-# 5. Prologue / Chapitres
-formatted_paragraphs = "".join([f"<p>{p.strip()}</p>" for p in generated_text.split("\n") if p.strip()])
-p_content = epub.EpubHtml(title="Récit Principal", file_name="content.xhtml", lang="fr")
-p_content.content = f"<h1>AKHANO — Récit Principal</h1>{formatted_paragraphs}"
-p_content.add_item(nav_css)
+    title_page = epub.EpubHtml(
+        title="Titre",
+        file_name="title.xhtml",
+        lang="fr"
+    )
 
-# 6. Quatrième de couverture
-p_back = epub.EpubHtml(title="Quatrième de couverture", file_name="back_cover.xhtml", lang="fr")
-p_back.content = '''
-<h1>Quatrième de Couverture</h1>
-<div class="back-cover">
-    <p class="no-indent">Quand les fils d'or bioluminescents s'éveillent sous la chair et que les scarifications cyan révèlent la mémoire des anciens, le destin bascule.</p>
-    <p class="no-indent">Plongez dans l'univers mystique et envoûtant d'AKHANO, un chef-d'œuvre Afro-Fantasy sculpté par la plume vibrante de FABIO LAROUS (Le Tisseur).</p>
-</div>
-'''
-p_back.add_item(nav_css)
+    title_page.content = f"""
+    <html>
+    <head><title>{escape(TITLE)}</title></head>
+    <body>
+        <h1>{escape(TITLE)}</h1>
+        <p class="center">{escape(AUTHOR)}</p>
+    </body>
+    </html>
+    """
 
-# 7. À propos de l'auteur
-p_author = epub.EpubHtml(title="À propos de l'auteur", file_name="author.xhtml", lang="fr")
-p_author.content = '''
-<h1>À Propos de l'Auteur</h1>
-<p class="no-indent"><strong>FABIO LAROUS (Le Tisseur)</strong> est un auteur indépendant et créateur d'univers immersifs à la croisée de la dark fantasy, du folklore afro-caraïbéen et des récits initiatiques majeurs. À travers la saga AKHANO et le système Ouroboros OS, il façonne des œuvres littéraires conçues avec la rigueur d'un best-seller international.</p>
-'''
-p_author.add_item(nav_css)
+    title_page.add_item(css)
 
-# Assemblage des parties
-sections = [p_title, p_copyright, p_dedication, p_thanks, p_content, p_back, p_author]
-for s in sections:
-    book.add_item(s)
+    content_page = epub.EpubHtml(
+        title="Récit principal",
+        file_name="content.xhtml",
+        lang="fr"
+    )
 
-book.toc = tuple(sections)
-book.add_item(epub.EpubNcx())
-book.add_item(epub.EpubNav())
-book.spine = ['nav'] + sections
+    content_page.content = f"""
+    <html>
+    <head><title>Récit principal</title></head>
+    <body>
+        <h1>Récit principal</h1>
+        {paragraphs_to_html(generated_text)}
+    </body>
+    </html>
+    """
 
-# Écriture du fichier EPUB final
-epub.write_epub("Akhano_Tome1_BestSeller.epub", book, {})
+    content_page.add_item(css)
 
-# Génération du Kit Marketing complet
-with open("KIT_MARKETING.md", "w", encoding="utf-8") as f:
-    f.write("# Kit Marketing Best-Seller — AKHANO Tome 1\n\n")
-    f.write("**Auteur :** FABIO LAROUS (Le Tisseur)\n\n")
-    f.write("## 1. Accroches TikTok / Reels (Hooks Viral)\n")
-    f.write("- *Hook 1 :* 'Si tes scarifications commençaient à luire en bleu sous la nuit, quel fil du destin tisserais-tu ?'\n")
-    f.write("- *Hook 2 :* 'L'Afro-Fantasy n'a jamais été aussi sombre et envoûtante... Découvre AKHANO.'\n\n")
-    f.write("## 2. Pitch Réseaux & Newsletter\n")
-    f.write("Découvrez le premier tome captivant d'AKHANO par FABIO LAROUS (Le Tisseur). Une plongée magistrale au cœur d'un univers où la magie se tisse dans la chair et le sang.\n")
+    back_page = epub.EpubHtml(
+        title="Quatrième de couverture",
+        file_name="back.xhtml",
+        lang="fr"
+    )
 
-print(" Génération terminée avec succès ! EPUB et Kit Marketing créés.")
-import { useEffect, useState } from 'react';
+    back_page.content = """
+    <html>
+    <head><title>Quatrième de couverture</title></head>
+    <body>
+        <h1>Quatrième de couverture</h1>
+        <p>
+        Quand les fils d’or bioluminescents s’éveillent sous la chair,
+        les scarifications cyan révèlent la mémoire des anciens.
+        </p>
+    </body>
+    </html>
+    """
 
-function useOllama(prompt: string): string {
-  // Votre code pour utiliser Ollama ici
+    back_page.add_item(css)
 
-  // Filtre et nettoyage de la réponse
-  const [cleanedResponse, setCleanedResponse] = useState<string>('');
-  useEffect(() => {
-    const nettoyerReponseOllama = (texte: string): string => {
-      const phrasesIndesirables = [
-        "Cette réponse est",
-        "Ce texte est",
-        "Ce passage est",
-        "Cette proposition",
-        "paramètres de ton et de style",
-        "vous avez spécifiés",
-        "respecte les paramètres",
-        "modèle",
-        "IA",
-        "assistant",
-      ];
+    sections = [title_page, content_page, back_page]
 
-      let resultat = texte;
+    for section in sections:
+        book.add_item(section)
 
-      for (const motif of phrasesIndesirables) {
-        const idx = resultat.toLowerCase().indexOf(motif.toLowerCase());
-        if (idx !== -1) {
-          resultat = resultat.slice(0, idx).trim();
-          break;
-        }
-      }
+    book.toc = tuple(sections)
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ["nav"] + sections
 
-      // Enlever les sauts de ligne en trop à la fin
-      return resultat.replace(/\n+$/g, '');
-    };
+    epub.write_epub("Akhano_Tome1_Ollama.epub", book, {})
 
-    setCleanedResponse(nettoyerReponseOllama(response));
-  }, [prompt]);
 
-  return cleanedResponse;
-}
+def main() -> None:
+    print("Démarrage d’Ouroboros en mode local...")
+    print(f"Modèle Ollama utilisé : {MODEL}")
 
-// Votre code pour utiliser useOllama ici
+    prompt = """
+Tu es un auteur de dark fantasy afro-futuriste.
 
+Écris un extrait original du Tome 1 d’AKHANO — Le Tisseur du Destin,
+en français.
+
+Contraintes :
+- 1 000 à 1 500 mots ;
+- narration immersive ;
+- pas de commentaire sur ton rôle d’IA ;
+- pas de résumé ni d’explication ;
+- personnages, décor et conflit clairement présents ;
+- style sombre, poétique et visuel.
+"""
+
+    generated_text = generate_text(prompt)
+
+    if not generated_text:
+        raise RuntimeError("Ollama a renvoyé un texte vide.")
+
+    Path("generated_text.txt").write_text(
+        generated_text,
+        encoding="utf-8"
+    )
+
+    create_epub(generated_text)
+
+    Path("KIT_MARKETING.md").write_text(
+        f"""# Kit marketing — {TITLE}
+
+**Auteur :** {AUTHOR}
+
+## Description courte
+
+Un récit de dark fantasy afro-futuriste où les fils du destin
+s’éveillent dans la chair et la mémoire.
+
+## Accroches
+
+- Et si ton destin brillait sous ta peau ?
+- Les anciens ont laissé des fils. Quelqu’un doit les suivre.
+- AKHANO : le premier fil d’une saga mystique.
+""",
+        encoding="utf-8"
+    )
+
+    print("EPUB créé : Akhano_Tome1_Ollama.epub")
+    print("Texte créé : generated_text.txt")
+    print("Marketing créé : KIT_MARKETING.md")
+
+
+if __name__ == "__main__":
+    main()
